@@ -1,0 +1,51 @@
+@startuml BridgeLang
+actor User as U
+participant "FastAPI (main.py)" as F
+participant "Controller" as C
+participant "Prompt File" as P
+participant "Model File" as M
+
+' User sends input to FastAPI
+activate U
+U -> F : POST /bridgelang {input: "sentence", target_language: "en"} 
+activate F
+
+' FastAPI sets up app, routes to controller function
+F -> F : from fastapi import FastAPI, Request. Initialize FastAPI instance app = FastAPI()
+F -> C : Call controller.bridgelang(input, target_language) with parameters input and target_language
+activate C
+
+' Controller validates input and target_language
+C -> C : Validate if input is empty or target_language is not provided, raise HTTPException for invalid inputs
+C -> F : If invalid, raise HTTPException with status code 400 and error message for empty input
+
+' Controller generates system prompt based on input and target_language
+C -> P : Call generate_dynamic_prompt(input_text, target_language) to create translation prompt string
+activate P
+P -> P : Construct prompt with user input and target language, forming system prompt for model request
+P -> C : Return constructed prompt string
+deactivate P
+
+' Controller calls model with prompt to get the translation
+C -> M : Call get_translation(prompt) with the generated prompt
+
+activate M
+
+' Model file sends request to NVIDIA model API for translation
+M -> M : Send API request to NVIDIA with model="nvidia/llama-3.1-nemotron-70b-instruct" for translation
+M -> M : Handle the response and process the model’s stream output with chunk-by-chunk streaming
+M -> M : Clean up model response text using clean_translation() to remove unnecessary characters like markdown
+' Return translated sentence to controller
+M -> C : Return cleaned translated text from model response back to the controller function
+deactivate M
+
+' Controller sends final response back to FastAPI
+C -> F : Return JSON response with translated sentence in a dictionary format containing translated text
+deactivate C
+
+' FastAPI returns response to user
+F -> U : Send JSON response back to user with translated sentence and success status
+deactivate F
+deactivate U
+
+@enduml
